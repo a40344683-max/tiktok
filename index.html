@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ألبوم الصور</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: #0d0d12; color: #e8e8ef;
+    min-height: 100vh; display: flex;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .gate {
+    background: #17171f; border: 1px solid #2a2a38;
+    border-radius: 16px; padding: 40px 32px;
+    width: 100%; max-width: 400px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .gate h1 { font-size: 22px; margin-bottom: 8px; font-weight: 600; }
+  .gate p { color: #8a8a9e; font-size: 14px; margin-bottom: 24px; }
+  .gate input {
+    width: 100%; padding: 14px 16px; background: #0d0d12;
+    border: 1px solid #2a2a38; border-radius: 10px;
+    color: #e8e8ef; font-size: 16px; outline: none; transition: border-color .2s;
+  }
+  .gate input:focus { border-color: #5b8cff; }
+  .gate button {
+    width: 100%; margin-top: 14px; padding: 14px;
+    background: #5b8cff; border: none; border-radius: 10px;
+    color: #fff; font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: background .2s;
+  }
+  .gate button:hover { background: #4a7aee; }
+  .err { color: #ff6b6b; font-size: 14px; margin-top: 14px; min-height: 20px; }
+  .hint { color: #5a5a6e; font-size: 12px; margin-top: 18px; line-height: 1.6; }
+
+  .album-view { display: none; width: 100%; max-width: 1200px; }
+  .album-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+  }
+  .album-header h2 { font-size: 24px; font-weight: 600; }
+  .album-header button {
+    padding: 10px 20px; background: #2a2a38; border: none;
+    border-radius: 10px; color: #e8e8ef; font-size: 14px;
+    cursor: pointer; transition: background .2s;
+  }
+  .album-header button:hover { background: #3a3a4c; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .grid figure {
+    background: #17171f; border: 1px solid #2a2a38;
+    border-radius: 12px; overflow: hidden; cursor: pointer;
+    transition: transform .2s, border-color .2s;
+  }
+  .grid figure:hover { transform: translateY(-4px); border-color: #5b8cff; }
+  .grid img {
+    width: 100%; height: 200px; object-fit: cover; display: block;
+  }
+  .empty { color: #8a8a9e; text-align: center; padding: 60px 20px; font-size: 16px; }
+
+  .lightbox {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.94); z-index: 100;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img {
+    max-width: 95vw; max-height: 90vh;
+    object-fit: contain; border-radius: 8px;
+  }
+  .lightbox .close {
+    position: absolute; top: 20px; right: 24px;
+    font-size: 36px; color: #fff; cursor: pointer;
+    line-height: 1; opacity: .8;
+  }
+  .lightbox .close:hover { opacity: 1; }
+  .lightbox .nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    font-size: 48px; color: #fff; cursor: pointer;
+    opacity: .6; user-select: none; padding: 0 16px;
+  }
+  .lightbox .nav:hover { opacity: 1; }
+  .lightbox .prev { left: 8px; }
+  .lightbox .next { right: 8px; }
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <h1>ألبوم الصور</h1>
+  <p>أدخل اسمك لعرض ألبومك</p>
+  <input type="text" id="nameInput" placeholder="الاسم..." autocomplete="off">
+  <button id="enterBtn">دخول</button>
+  <div class="err" id="errMsg"></div>
+  <div class="hint">جرّب: ahmed &nbsp;|&nbsp; sara &nbsp;|&nbsp; omar</div>
+</div>
+
+<div class="album-view" id="albumView">
+  <div class="album-header">
+    <h2 id="albumTitle"></h2>
+    <button id="backBtn">تسجيل خروج</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyMsg" style="display:none;">لا توجد صور في هذا الألبوم.</div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <span class="close" id="lbClose">&times;</span>
+  <span class="nav prev" id="lbPrev">&#10094;</span>
+  <img id="lbImg" src="" alt="">
+  <span class="nav next" id="lbNext">&#10095;</span>
+</div>
+
+<script>
+// ====== إنشاء صور تجريبية مضمّنة (SVG) — تُستبدل بصورك لاحقاً ======
+function makePlaceholder(label, color1, color2) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${color1}"/>
+      <stop offset="1" stop-color="${color2}"/>
+    </linearGradient></defs>
+    <rect width="600" height="400" fill="url(#g)"/>
+    <text x="300" y="210" font-family="Segoe UI, Tahoma" font-size="48"
+      fill="#ffffff" text-anchor="middle" opacity="0.9">${label}</text>
+  </svg>`;
+  return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+}
+
+// ====== قاعدة الألبومات — كل شيء داخل الملف ======
+const ALBUMS = {
+  "ahmed": {
+    name: "أحمد",
+    images: [
+      { label: "أحمد ١", c1: "#5b8cff", c2: "#1a2a6c" },
+      { label: "أحمد ٢", c1: "#ff6b6b", c2: "#6c1a1a" },
+      { label: "أحمد ٣", c1: "#43e97b", c2: "#1a6c3a" },
+      { label: "أحمد ٤", c1: "#fa709a", c2: "#6c1a4a" }
+    ]
+  },
+  "sara": {
+    name: "سارة",
+    images: [
+      { label: "سارة ١", c1: "#a18cd1", c2: "#3a1a6c" },
+      { label: "سارة ٢", c1: "#fbc2eb", c2: "#6c3a5a" },
+      { label: "سارة ٣", c1: "#84fab0", c2: "#1a6c5a" }
+    ]
+  },
+  "omar": {
+    name: "عمر",
+    images: [
+      { label: "عمر ١", c1: "#ffecd2", c2: "#6c5a1a" },
+      { label: "عمر ٢", c1: "#30cfd0", c2: "#1a4a6c" }
+    ]
+  }
+};
+
+// تحويل كل صورة إلى data URL عند التحميل
+for (const key in ALBUMS) {
+  ALBUMS[key].images = ALBUMS[key].images.map(function(img) {
+    return makePlaceholder(img.label, img.c1, img.c2);
+  });
+}
+
+// ====== المنطق ======
+const gate = document.getElementById('gate');
+const albumView = document.getElementById('albumView');
+const nameInput = document.getElementById('nameInput');
+const enterBtn = document.getElementById('enterBtn');
+const errMsg = document.getElementById('errMsg');
+const albumTitle = document.getElementById('albumTitle');
+const grid = document.getElementById('grid');
+const emptyMsg = document.getElementById('emptyMsg');
+const backBtn = document.getElementById('backBtn');
+const lightbox = document.getElementById('lightbox');
+const lbImg = document.getElementById('lbImg');
+const lbClose = document.getElementById('lbClose');
+const lbPrev = document.getElementById('lbPrev');
+const lbNext = document.getElementById('lbNext');
+
+let currentImages = [];
+let currentIndex = 0;
+
+function openAlbum(key) {
+  const album = ALBUMS[key];
+  if (!album) return false;
+
+  albumTitle.textContent = "ألبوم " + album.name;
+  grid.innerHTML = "";
+  currentImages = album.images.slice();
+
+  currentImages.forEach(function(src, i) {
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = album.name + " - صورة " + (i + 1);
+    img.loading = "lazy";
+    fig.appendChild(img);
+    fig.addEventListener('click', function() { openLightbox(i); });
+    grid.appendChild(fig);
+  });
+
+  gate.style.display = "none";
+  albumView.style.display = "block";
+  emptyMsg.style.display = currentImages.length === 0 ? "block" : "none";
+  return true;
+}
+
+function tryEnter() {
+  const raw = nameInput.value.trim().toLowerCase();
+  if (!raw) { errMsg.textContent = "أدخل الاسم أولاً."; return; }
+  if (openAlbum(raw)) { errMsg.textContent = ""; }
+  else { errMsg.textContent = "لا يوجد ألبوم بهذا الاسم."; }
+}
+
+function openLightbox(index) {
+  if (index < 0 || index >= currentImages.length) return;
+  currentIndex = index;
+  lbImg.src = currentImages[index];
+  lightbox.classList.add('active');
+}
+function closeLightbox() { lightbox.classList.remove('active'); lbImg.src = ""; }
+function showPrev() {
+  currentIndex = (currentIndex - 1 + currentImages.length) % currentImages.length;
+  lbImg.src = currentImages[currentIndex];
+}
+function showNext() {
+  currentIndex = (currentIndex + 1) % currentImages.length;
+  lbImg.src = currentImages[currentIndex];
+}
+
+enterBtn.addEventListener('click', tryEnter);
+nameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryEnter(); });
+backBtn.addEventListener('click', function() {
+  albumView.style.display = "none";
+  gate.style.display = "block";
+  nameInput.value = ""; errMsg.textContent = "";
+  grid.innerHTML = ""; currentImages = [];
+});
+lbClose.addEventListener('click', closeLightbox);
+lbPrev.addEventListener('click', showPrev);
+lbNext.addEventListener('click', showNext);
+lightbox.addEventListener('click', function(e) { if (e.target === lightbox) closeLightbox(); });
+document.addEventListener('keydown', function(e) {
+  if (!lightbox.classList.contains('active')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowRight') showPrev();
+  if (e.key === 'ArrowLeft') showNext();
+});
+</script>
+</body>
+</html>
